@@ -6,12 +6,12 @@ extern crate crc;
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use crc::crc32;
-use rand::Rng;
+
 use serde_derive::{Deserialize, Serialize};
 use std::panic;
 use std::{
     collections::HashMap,
-    fs::{remove_file, File, OpenOptions},
+    fs::{File, OpenOptions},
     io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     path::Path,
 };
@@ -162,6 +162,8 @@ mod tests {
     use super::*;
     use rstest::*;
     use serial_test::serial;
+    use std::fs::remove_file;
+
     struct TestCtx {
         test_file: ActionKV,
     }
