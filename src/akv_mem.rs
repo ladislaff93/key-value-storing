@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::path::Path;
 
-
 #[cfg(not(target_os = "windows"))]
 const USAGE: &str = "
 Usage:

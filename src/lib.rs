@@ -8,13 +8,13 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use crc::crc32;
 use rand::Rng;
 use serde_derive::{Deserialize, Serialize};
+use std::panic;
 use std::{
     collections::HashMap,
-    fs::{File, OpenOptions, remove_file},
+    fs::{remove_file, File, OpenOptions},
     io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     path::Path,
 };
-use std::panic;
 
 pub type ByteString = Vec<u8>;
 pub type ByteStr = [u8];
@@ -160,89 +160,156 @@ impl ActionKV {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::*;
+    use serial_test::serial;
+    struct TestCtx {
+        test_file: ActionKV,
+    }
 
-    #[test]
-    fn test_insert_and_get() {
-        let key = b"foo";
-        let value = b"bar";
-        let mut test_file = ActionKV::open(Path::new("test_foo")).expect("Unable to open file!");
-        test_file.load().expect("Unable to load values of the ActionKV file!");
-        test_file.insert(key, value).expect("Unable to insert key value pair into ActionKV file!");
-        let get_value = test_file.get(b"foo").expect("Unable to get value pair").expect("Didnt find value under that key");
-        let decode_value = String::from_utf8(get_value).expect("unable to decode the value into string");
-        assert_eq!("bar", decode_value);
-        if Path::new("test_foo").exists() {
-            remove_file(Path::new("test_foo")).expect("failed to del file");
+    impl TestCtx {
+        fn setup() -> Self {
+            Self {
+                test_file: ActionKV::open(Path::new("test_foo")).expect("Unable to open file!"),
+            }
         }
     }
-    #[test]
-    fn test_get_at() {
+
+    impl Drop for TestCtx {
+        fn drop(&mut self) {
+            if Path::new("test_foo").exists() {
+                remove_file(Path::new("test_foo")).expect("failed to del file");
+            }
+        }
+    }
+
+    #[fixture]
+    fn ctx() -> TestCtx {
+        TestCtx::setup()
+    }
+
+    #[rstest]
+    #[serial]
+    fn test_insert_and_get(mut ctx: TestCtx) {
         let key = b"foo";
         let value = b"bar";
-        let mut test_file = ActionKV::open(Path::new("test_foo")).expect("Unable to open file!");
-        test_file.load().expect("Unable to load values of the ActionKV file!");
-        test_file.insert(key, value).expect("Unable to insert key value pair into ActionKV file!");
-        let get_value = test_file.get_at(0).expect("Unable to get value pair");
-        let decode_value = String::from_utf8(get_value.value).expect("unable to decode the value into string");
-        let decode_key = String::from_utf8(get_value.key).expect("unable to decode the value into string");
+        ctx.test_file
+            .load()
+            .expect("Unable to load values of the ActionKV file!");
+        ctx.test_file
+            .insert(key, value)
+            .expect("Unable to insert key value pair into ActionKV file!");
+        let get_value = ctx
+            .test_file
+            .get(b"foo")
+            .expect("Unable to get value pair")
+            .expect("Didnt find value under that key");
+        let decode_value =
+            String::from_utf8(get_value).expect("unable to decode the value into string");
+        assert_eq!("bar", decode_value);
+    }
+
+    #[rstest]
+    #[serial]
+    fn test_get_at(mut ctx: TestCtx) {
+        let key = b"foo";
+        let value = b"bar";
+        ctx.test_file
+            .load()
+            .expect("Unable to load values of the ActionKV file!");
+        ctx.test_file
+            .insert(key, value)
+            .expect("Unable to insert key value pair into ActionKV file!");
+        let get_value = ctx.test_file.get_at(0).expect("Unable to get value pair");
+        let decode_value =
+            String::from_utf8(get_value.value).expect("unable to decode the value into string");
+        let decode_key =
+            String::from_utf8(get_value.key).expect("unable to decode the value into string");
         assert_eq!("foo", decode_key);
         assert_eq!("bar", decode_value);
-        if Path::new("test_foo").exists() {
-            remove_file(Path::new("test_foo")).expect("failed to del file");
-        }
     }
-    #[test]
-    fn test_find() {
+    #[rstest]
+    #[serial]
+    fn test_find(mut ctx: TestCtx) {
         let key = b"foo";
         let value = b"bar";
         let mut test_file = ActionKV::open(Path::new("test_foo")).expect("Unable to open file!");
-        test_file.load().expect("Unable to load values of the ActionKV file!");
-        test_file.insert(key, value).expect("Unable to insert key value pair into ActionKV file!");
-        test_file.insert(key, value).expect("Unable to insert key value pair into ActionKV file!");
-        test_file.insert(b"bar", b"foo").expect("Unable to insert key value pair into ActionKV file!");
-        let find_value = test_file.find(b"bar").expect("Unable to get value pair").unwrap();
-        let decode_key = String::from_utf8(find_value.1).expect("unable to decode the value into string");
+        ctx.test_file
+            .load()
+            .expect("Unable to load values of the ActionKV file!");
+        ctx.test_file
+            .insert(key, value)
+            .expect("Unable to insert key value pair into ActionKV file!");
+        ctx.test_file
+            .insert(key, value)
+            .expect("Unable to insert key value pair into ActionKV file!");
+        ctx.test_file
+            .insert(b"bar", b"foo")
+            .expect("Unable to insert key value pair into ActionKV file!");
+        let find_value = test_file
+            .find(b"bar")
+            .expect("Unable to get value pair")
+            .unwrap();
+        let decode_key =
+            String::from_utf8(find_value.1).expect("unable to decode the value into string");
         assert_eq!("foo", decode_key);
         assert_eq!(find_value.0, 36);
-        if Path::new("test_foo").exists() {
-            remove_file(Path::new("test_foo")).expect("failed to del file");
-        }
     }
-    #[test]
-    fn test_delete() {
+    #[rstest]
+    #[serial]
+    fn test_delete(mut ctx: TestCtx) {
         let key = b"foo";
         let value = b"bar";
-        let mut test_file = ActionKV::open(Path::new("test_foo")).expect("Unable to open file!");
-        test_file.load().expect("Unable to load values of the ActionKV file!");
-        test_file.insert(key, value).expect("Unable to insert key value pair into ActionKV file!");
-        let get_value = test_file.get(b"foo").expect("Unable to get value pair").expect("Didnt find value under that key");
-        let decode_value = String::from_utf8(get_value).expect("unable to decode the value into string");
+        ctx.test_file
+            .load()
+            .expect("Unable to load values of the ActionKV file!");
+        ctx.test_file
+            .insert(key, value)
+            .expect("Unable to insert key value pair into ActionKV file!");
+        let get_value = ctx
+            .test_file
+            .get(b"foo")
+            .expect("Unable to get value pair")
+            .expect("Didnt find value under that key");
+        let decode_value =
+            String::from_utf8(get_value).expect("unable to decode the value into string");
         assert_eq!("bar", decode_value);
-        test_file.delete(key).expect("unable to delete value at key");
-        let get_value = test_file.get(b"foo").expect("Unable to get value pair");
+        ctx.test_file
+            .delete(key)
+            .expect("unable to delete value at key");
+        let get_value = ctx.test_file.get(b"foo").expect("Unable to get value pair");
         if None == get_value {
             assert!(true);
         }
-        if Path::new("test_foo").exists() {
-            remove_file(Path::new("test_foo")).expect("failed to del file");
-        }
     }
-    #[test]
-    fn test_update() {
+    #[rstest]
+    #[serial]
+    fn test_update(mut ctx: TestCtx) {
         let key = b"foo";
         let value = b"bar";
-        let mut test_file = ActionKV::open(Path::new("test_foo")).expect("Unable to open file!");
-        test_file.load().expect("Unable to load values of the ActionKV file!");
-        test_file.insert(key, value).expect("Unable to insert key value pair into ActionKV file!");
-        let get_value = test_file.get(b"foo").expect("Unable to get value pair").expect("Didnt find value under that key");
-        let decode_value = String::from_utf8(get_value).expect("unable to decode the value into string");
+        ctx.test_file
+            .load()
+            .expect("Unable to load values of the ActionKV file!");
+        ctx.test_file
+            .insert(key, value)
+            .expect("Unable to insert key value pair into ActionKV file!");
+        let get_value = ctx
+            .test_file
+            .get(b"foo")
+            .expect("Unable to get value pair")
+            .expect("Didnt find value under that key");
+        let decode_value =
+            String::from_utf8(get_value).expect("unable to decode the value into string");
         assert_eq!("bar", decode_value);
-        test_file.update(key, b"foo").expect("Unable to update value at the key");
-        let get_value = test_file.get(b"foo").expect("Unable to get value pair").expect("Didnt find value under that key");
-        let decode_value = String::from_utf8(get_value).expect("unable to decode the value into string");
+        ctx.test_file
+            .update(key, b"foo")
+            .expect("Unable to update value at the key");
+        let get_value = ctx
+            .test_file
+            .get(b"foo")
+            .expect("Unable to get value pair")
+            .expect("Didnt find value under that key");
+        let decode_value =
+            String::from_utf8(get_value).expect("unable to decode the value into string");
         assert_eq!("foo", decode_value);
-        if Path::new("test_foo").exists() {
-            remove_file(Path::new("test_foo")).expect("failed to del file");
-        }
     }
 }
