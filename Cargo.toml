@@ -1,0 +1,22 @@
+[package]
+name = "key_value_storing"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde_derive = "1"
+serde = "1"
+byteorder = "1.2"
+crc = "1"
+rand = "0.8.5"
+bincode = "1.0.0"
+
+[lib]
+name = "libactionkv"
+path = "src/lib.rs"
+
+[[bin]]
+name = "akv_mem"
+path = "src/akv_mem.rs"
