@@ -12,15 +12,16 @@ byteorder = "1.2"
 crc = "1.8.1"
 rand = "0.8.5"
 bincode = "1.0.0"
-
+timed = "0.2.1"
+env_logger = "0.10.1"
+log = "0.4.20"
 [dev-dependencies]
 rstest = "0.18.2"
 serial_test = "2"
-
 [lib]
 name = "libactionkv"
 path = "src/lib.rs"
 
 [[bin]]
-name = "akv_mem"
-path = "src/akv_mem.rs"
+name = "akv_disk"
+path = "src/akv_disk.rs"
